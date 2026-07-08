@@ -28,16 +28,119 @@ const KNOWN_DEVELOPERS = [
   "Унистрой",
   "Ак Барс Дом",
   "Суварстроит",
+  "Новастрой",
   "ПИК",
   "Самолет",
-  "Самолёт",
   "СМУ-88",
   "ГК ЖИК",
   "Талан",
-  "Брусника",
-  "КамаСтройИнвест",
-  "Комосстрой"
+  "Брусника"
 ];
+
+function normalize(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replaceAll("ё", "е")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function toNumber(value) {
+  if (value === null || value === undefined) return 0;
+
+  const clean = String(value)
+    .replace(/[^\d.,]/g, "")
+    .replace(",", ".");
+
+  const number = Number(clean);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function scoreTransport(metroMinutes) {
+  const minutes = toNumber(metroMinutes);
+
+  if (!minutes) return 60;
+  if (minutes <= 10) return 90;
+  if (minutes <= 20) return 78;
+  if (minutes <= 30) return 68;
+
+  return 55;
+}
+
+function scoreInfrastructure(data) {
+  let score = 45;
+
+  if (data.parking) score += 12;
+  if (data.schools_nearby) score += 15;
+  if (data.kindergarten_nearby) score += 15;
+  if (data.shops_nearby) score += 13;
+
+  return Math.min(100, score);
+}
+
+function scorePrice(priceFrom) {
+  const price = toNumber(priceFrom);
+
+  if (!price) return 60;
+  if (price <= 7000000) return 90;
+  if (price <= 10000000) return 80;
+  if (price <= 14000000) return 68;
+  if (price <= 18000000) return 58;
+
+  return 48;
+}
+
+function scoreDeveloper(developer) {
+  const text = normalize(developer);
+
+  if (!text) return 60;
+
+  const isKnown = KNOWN_DEVELOPERS.some(function (item) {
+    const developerName = normalize(item);
+    return text === developerName || text.includes(developerName);
+  });
+
+  return isKnown ? 85 : 70;
+}
+
+function scoreDeadline(deadline) {
+  const match = String(deadline || "").match(/20\d{2}/);
+  const year = match ? Number(match[0]) : 0;
+
+  if (!year) return 60;
+
+  const currentYear = new Date().getFullYear();
+
+  if (year <= currentYear + 1) return 88;
+  if (year <= currentYear + 2) return 78;
+  if (year <= currentYear + 3) return 68;
+
+  return 55;
+}
+
+function calcTotalRating(scores) {
+  return Math.round(
+    scores.transport_score * 0.25 +
+    scores.infrastructure_score * 0.25 +
+    scores.price_score * 0.20 +
+    scores.developer_score * 0.20 +
+    scores.deadline_score * 0.10
+  );
+}
+
+function calcScores(data) {
+  const scores = {
+    transport_score: scoreTransport(data.metro_minutes),
+    infrastructure_score: scoreInfrastructure(data),
+    price_score: scorePrice(data.price_from),
+    developer_score: scoreDeveloper(data.developer),
+    deadline_score: scoreDeadline(data.deadline)
+  };
+
+  scores.total_rating = calcTotalRating(scores);
+
+  return scores;
+}
 
 function cleanText(value = "") {
   return String(value)
